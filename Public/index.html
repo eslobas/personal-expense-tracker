@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Despesas</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💰 Gestor de Despesas Pessoais</h1>
+            <div class="balance-box">
+                Saldo Atual: <span id="current-balance">0,00</span> €
+            </div>
+        </header>
+
+
+        <!-- Aviso de novo mês -->
+        <div id="month-check-section" class="section hidden">
+            <h2>📆 Novo Mês</h2>
+            <p>Já recebeu o salário de <strong>400 €</strong> este mês?</p>
+            <button id="salary-yes">Sim, registar</button>
+            <button id="salary-no">Ainda não</button>
+        </div>
+
+        <!-- Conteúdo principal -->
+        <div id="main-content" class="hidden">
+            <!-- Meta de poupança -->
+            <div class="section">
+                <h2>🎯 Meta de Poupança Mensal</h2>
+                <div class="savings-row">
+                    <input type="number" id="savings-goal" step="0.01" min="0" placeholder="Valor (€)">
+                    <button id="set-savings">Definir</button>
+                </div>
+                <div id="savings-info" class="info-text"></div>
+                <div id="budget-info" class="info-text highlight"></div>
+            </div>
+
+            <!-- Dinheiro Físico -->
+            <div class="section">
+                <h2>💵 Dinheiro Físico (carteira)</h2>
+                <div class="cash-row">
+                    <input type="number" id="physical-cash" step="0.01" min="0" placeholder="Valor atual (€)">
+                    <button id="update-physical-cash">Atualizar</button>
+                </div>
+                <span id="physical-cash-display"></span>
+            </div>
+
+            <!-- Formulários -->
+            <div class="row">
+                <div class="section half">
+                    <h2>➕ Registar Ganho Extra</h2>
+                    <form id="gain-form">
+                        <input type="text" name="descricao" placeholder="Descrição" required>
+                        <input type="number" name="valor" step="0.01" min="0" placeholder="Valor (€)" required>
+                        <input type="date" name="data" required>
+                        <input type="text" name="categoria" placeholder="Categoria (opcional)">
+                        <button type="submit">Registar Ganho</button>
+                    </form>
+                </div>
+
+                <div class="section half">
+                    <h2>💸 Registar Gasto</h2>
+                    <form id="expense-form">
+                        <input type="text" name="descricao" placeholder="Descrição" required>
+                        <input type="number" name="valor" step="0.01" min="0" placeholder="Valor (€)" required>
+                        <input type="date" name="data" required>
+                        <input type="text" name="categoria" placeholder="Categoria (opcional)">
+                        <button type="submit">Registar Gasto</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Subscrições -->
+            <div class="section">
+                <h2>📅 Subscrições</h2>
+                <button id="show-add-subscription">➕ Nova Subscrição</button>
+                <div id="subscriptions-list"></div>
+            </div>
+
+            <!-- Investimentos -->
+            <div class="section">
+                <h2>📈 Investimentos</h2>
+                <button id="show-add-investment">➕ Novo Investimento</button>
+                <div id="investments-list"></div>
+            </div>
+
+            <!-- Extrato Mensal -->
+            <div class="section">
+                <h2>📋 Extrato Mensal</h2>
+                <div class="month-selector">
+                    <input type="month" id="month-picker" value="">
+                    <button id="load-month">Carregar</button>
+                </div>
+
+                <div class="tabs">
+                    <button class="tab-button active" data-tab="expenses">Gastos</button>
+                    <button class="tab-button" data-tab="gains">Ganhos</button>
+                </div>
+
+                <div id="expenses-tab" class="tab-content active">
+                    <table id="expenses-table">
+                        <thead>
+                            <tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Ações</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div id="gains-tab" class="tab-content">
+                    <table id="gains-table">
+                        <thead>
+                            <tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Ações</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Transação -->
+    <div id="edit-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3 id="modal-title">Editar Transação</h3>
+            <form id="edit-form">
+                <input type="hidden" id="edit-id">
+                <input type="hidden" id="edit-tipo">
+                <input type="text" id="edit-descricao" placeholder="Descrição" required>
+                <input type="number" id="edit-valor" step="0.01" min="0" placeholder="Valor (€)" required>
+                <input type="date" id="edit-data" required>
+                <input type="text" id="edit-categoria" placeholder="Categoria">
+                <button type="submit">Guardar Alterações</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Subscrição -->
+    <div id="subscription-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3 id="subscription-modal-title">Nova Subscrição</h3>
+            <form id="subscription-form">
+                <input type="hidden" id="sub-id">
+                <input type="text" id="sub-nome" placeholder="Nome" required>
+                <input type="number" id="sub-valor" step="0.01" min="0" placeholder="Valor (€)" required>
+                <select id="sub-frequencia" required>
+                    <option value="mensal">Mensal</option>
+                    <option value="anual">Anual</option>
+                    <option value="semanal">Semanal</option>
+                    <option value="outro">Outro</option>
+                </select>
+                <input type="number" id="sub-dia" placeholder="Dia do mês (1-31) [se mensal]" min="1" max="31">
+                <label>Próximo pagamento:</label>
+                <input type="date" id="sub-proxima-data" required>
+                <input type="text" id="sub-categoria" placeholder="Categoria (opcional)">
+                <label>
+                    <input type="checkbox" id="sub-ativo" checked> Ativa
+                </label>
+                <button type="submit">Guardar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Investimento -->
+    <div id="investment-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3 id="investment-modal-title">Novo Investimento</h3>
+            <form id="investment-form">
+                <input type="hidden" id="inv-id">
+                <input type="text" id="inv-nome" placeholder="Nome" required>
+                <select id="inv-tipo" required>
+                    <option value="pontual">Pontual</option>
+                    <option value="regular">Regular (aporte recorrente)</option>
+                </select>
+                <input type="number" id="inv-valor" step="0.01" min="0" placeholder="Valor (€)" required>
+                <input type="date" id="inv-data" required>
+                <div id="inv-freq-container" style="display:none;">
+                    <select id="inv-frequencia">
+                        <option value="mensal">Mensal</option>
+                        <option value="anual">Anual</option>
+                        <option value="trimestral">Trimestral</option>
+                        <option value="outro">Outro</option>
+                    </select>
+                </div>
+                <input type="text" id="inv-categoria" placeholder="Categoria (opcional)">
+                <textarea id="inv-obs" placeholder="Observações"></textarea>
+                <button type="submit">Guardar</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
