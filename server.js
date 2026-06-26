@@ -48,19 +48,12 @@ app.get('/api/transactions/:id', async (req, res) => {
 });
 
 app.post('/api/transactions', async (req, res) => {
-    console.log('POST /api/transactions - body:', req.body);
     try {
         const { tipo, descricao, valor, data, categoria } = req.body;
-        console.log('Campos recebidos:', { tipo, descricao, valor, data, categoria });
-        
         if (!tipo || !descricao || !valor || !data) {
-            console.log('Campos em falta:', { tipo, descricao, valor, data });
             return res.status(400).json({ error: 'Campos obrigatórios: tipo, descricao, valor, data' });
         }
-        
         const id = await db.addTransaction(tipo, descricao, parseFloat(valor), data, categoria);
-        console.log('Transação adicionada com ID:', id);
-        
         res.status(201).json({ id, message: 'Transação adicionada com sucesso' });
     } catch (err) {
         console.error('Erro ao adicionar transação:', err);
@@ -115,7 +108,6 @@ app.get('/api/monthly-totals', async (req, res) => {
             return res.status(400).json({ error: 'Parâmetros mes e ano obrigatórios' });
         }
         const totals = await db.getMonthlyTotals(parseInt(mes), parseInt(ano));
-        console.log('Monthly totals para', mes, ano, ':', totals); // Log para debug
         res.json(totals);
     } catch (err) {
         console.error('Erro em monthly-totals:', err);
