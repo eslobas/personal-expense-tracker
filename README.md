@@ -1,50 +1,97 @@
-Personal Expense Tracker
-A simple and intuitive personal finance management application built with Node.js and MySQL. Track your expenses, manage subscriptions, monitor investments, and achieve your savings goals.
+# 💶 Personal Expense Tracker
 
-Purpose
-This application was created for personal use to help manage daily finances, track recurring subscriptions, monitor investments, and maintain a healthy savings habit. It provides a clear overview of your financial health with automatic calculations and reminders.
+A full-stack personal finance manager built with **Node.js, Express and MySQL**.
+Track income and expenses, manage recurring subscriptions, log investments and keep an
+eye on a monthly savings goal — all from a clean single-page web interface.
 
-Features
-Core Features
-Dashboard - View your current balance at a glance
+![Node](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)
+![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-8-4479A1?logo=mysql&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-blue)
 
-Income/Expense Tracking - Record all transactions with descriptions, dates, and categories
+> Interface language is **Portuguese**; code, API and docs are in English.
 
-Monthly Overview - Filter and view all transactions by month
+---
 
-Edit/Delete - Full CRUD operations on all transactions
+## ✨ Features
 
-Smart Features
-Monthly Salary Check - Automatically asks if you've received your €400 salary at the start of each month
+- **Dashboard** — current balance at a glance (income − expenses).
+- **Transactions** — full CRUD with description, amount, date and category; filter by month/year.
+- **Subscriptions** — recurring payments (weekly / monthly / yearly). A processing endpoint
+  turns due subscriptions into expense transactions and rolls the next payment date forward.
+- **Investments** — logged and automatically mirrored as an expense transaction.
+- **Physical cash** — track wallet cash separately from the bank balance.
+- **Settings** — key/value store for things like the monthly salary check and savings goal.
 
-Subscription Manager
+## 🧱 Architecture
 
-Track recurring payments (monthly, yearly, weekly)
+```
+Browser (SPA)  ──fetch──▶  Express REST API  ──mysql2/promise──▶  MySQL
+public/*                   server.js                              despesas DB
+                           db.js (data-access layer)
+```
 
-Automatic expense creation on due dates
+- `server.js` — Express app + REST routes (thin controllers).
+- `db.js` — data-access layer; parameterised queries via a connection pool (`mysql2/promise`).
+- `public/` — vanilla HTML/CSS/JS single-page front end.
+- `schema.sql` — database schema (tables, indexes, seed row).
 
-Next payment date auto-calculates
+## 🔌 API reference
 
-Investment Tracker
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/balance` | Current balance |
+| `GET` | `/api/transactions?tipo&mes&ano` | List / filter transactions |
+| `POST` | `/api/transactions` | Create a transaction |
+| `PUT` | `/api/transactions/:id` | Update a transaction |
+| `DELETE` | `/api/transactions/:id` | Delete a transaction |
+| `GET` | `/api/monthly-totals?mes&ano` | Income/expense totals for a month |
+| `GET/POST` | `/api/physical-cash` | Read / set wallet cash |
+| `GET/POST/PUT/DELETE` | `/api/subscriptions` | Manage subscriptions |
+| `POST` | `/api/subscriptions/process` | Charge due subscriptions |
+| `GET/POST/PUT/DELETE` | `/api/investments` | Manage investments |
+| `GET/POST` | `/api/settings/:key` | Read / write settings |
 
-Record one-time or regular investments
+## 🚀 Getting started
 
-Automatically deducts from your balance
+**Prerequisites:** Node.js 18+ and a running MySQL 8 server.
 
-Physical Cash - Track cash in your wallet separately from bank balance
+```bash
+# 1) Install dependencies
+npm install
 
-Savings Goal
+# 2) Create the database and tables
+mysql -u root -p < schema.sql
 
-Set a monthly savings target
+# 3) Configure environment
+cp .env.example .env        # then edit DB_USER / DB_PASSWORD
 
-Real-time calculation of available spending money
+# 4) Run
+npm run dev                 # http://localhost:3002
+```
 
-Considers future subscriptions in the calculation
+## ⚙️ Configuration
 
-Quick Start
-Prerequisites
-Node.js
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3002` | HTTP port |
+| `DB_HOST` | `localhost` | MySQL host |
+| `DB_USER` | `root` | MySQL user |
+| `DB_PASSWORD` | `` | MySQL password |
+| `DB_NAME` | `despesas` | Database name |
 
-MySQL Server
+## 🛠️ Tech stack
 
-MySQL Workbench (optional, for database management)
+**Backend** · Node.js · Express · mysql2 (connection pool, parameterised queries) ·
+**Database** · MySQL · **Frontend** · HTML · CSS · vanilla JavaScript
+
+## 🗺️ Roadmap
+
+- [ ] Authentication (multi-user)
+- [ ] Charts for spending by category and month-over-month trends
+- [ ] CSV export / import
+- [ ] Automated tests for the data-access layer
+
+---
+
+<sub>Built as a personal finance project to practise full-stack development with Node.js and MySQL.</sub>
