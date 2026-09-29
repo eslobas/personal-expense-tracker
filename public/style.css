@@ -247,3 +247,6 @@ tr:hover {
         gap: 10px;
     }
 }
+.balance-box.negative {
+    background: #e74c3c;
+}

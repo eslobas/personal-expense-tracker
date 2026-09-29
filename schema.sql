@@ -55,5 +55,11 @@ CREATE TABLE IF NOT EXISTS investments (
   frequencia  VARCHAR(50) DEFAULT NULL,
   categoria   VARCHAR(100) DEFAULT NULL,
   observacoes TEXT DEFAULT NULL,
-  INDEX idx_inv_data (data)
+  transaction_id INT DEFAULT NULL,  -- gasto espelhado em transactions
+  INDEX idx_inv_data (data),
+  FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE SET NULL
 );
+
+-- Migração para bases de dados criadas antes de transaction_id existir:
+--   ALTER TABLE investments ADD COLUMN transaction_id INT DEFAULT NULL,
+--     ADD FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE SET NULL;
