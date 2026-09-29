@@ -1,14 +1,27 @@
 const express = require('express');
 const path = require('path');
-const cors = require('cors');
 const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
 
-app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ========== VALIDAÇÃO ==========
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const isDate = (v) => typeof v === 'string' && DATE_RE.test(v) && !isNaN(new Date(v));
+const isAmount = (v) => Number.isFinite(Number(v)) && Number(v) > 0;
+const isId = (v) => /^\d+$/.test(v);
+const text = (v, max = 255) => (v === undefined || v === null || v === '') ? null : String(v).trim().slice(0, max);
+
+// Rejeita IDs não numéricos em qualquer rota /:id
+app.param('id', (req, res, next, id) => isId(id) ? next() : res.status(400).json({ error: 'ID inválido' }));
+
+function serverError(res, err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+}
 
 // ========== API ROTAS ==========
 
@@ -18,7 +31,7 @@ app.get('/api/balance', async (req, res) => {
         const balance = await db.getCurrentBalance();
         res.json({ balance });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
@@ -33,7 +46,7 @@ app.get('/api/transactions', async (req, res) => {
         );
         res.json(transactions);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
@@ -43,31 +56,33 @@ app.get('/api/transactions/:id', async (req, res) => {
         if (!transaction) return res.status(404).json({ error: 'Transação não encontrada' });
         res.json(transaction);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
 app.post('/api/transactions', async (req, res) => {
     try {
         const { tipo, descricao, valor, data, categoria } = req.body;
-        if (!tipo || !descricao || !valor || !data) {
-            return res.status(400).json({ error: 'Campos obrigatórios: tipo, descricao, valor, data' });
+        if (!['ganho', 'gasto'].includes(tipo) || !text(descricao) || !isAmount(valor) || !isDate(data)) {
+            return res.status(400).json({ error: 'Campos obrigatórios: tipo (ganho|gasto), descricao, valor > 0, data (AAAA-MM-DD)' });
         }
-        const id = await db.addTransaction(tipo, descricao, parseFloat(valor), data, categoria);
+        const id = await db.addTransaction(tipo, text(descricao), Number(valor), data, text(categoria, 100));
         res.status(201).json({ id, message: 'Transação adicionada com sucesso' });
     } catch (err) {
-        console.error('Erro ao adicionar transação:', err);
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
 app.put('/api/transactions/:id', async (req, res) => {
     try {
         const { descricao, valor, data, categoria } = req.body;
-        await db.updateTransaction(req.params.id, descricao, parseFloat(valor), data, categoria);
+        if (!text(descricao) || !isAmount(valor) || !isDate(data)) {
+            return res.status(400).json({ error: 'Campos obrigatórios: descricao, valor > 0, data' });
+        }
+        await db.updateTransaction(req.params.id, text(descricao), Number(valor), data, text(categoria, 100));
         res.json({ message: 'Transação atualizada' });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
@@ -76,7 +91,7 @@ app.delete('/api/transactions/:id', async (req, res) => {
         await db.deleteTransaction(req.params.id);
         res.json({ message: 'Transação removida' });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
@@ -86,17 +101,18 @@ app.get('/api/settings/:key', async (req, res) => {
         const value = await db.getSetting(req.params.key);
         res.json({ key: req.params.key, value });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
 app.post('/api/settings', async (req, res) => {
     try {
         const { key, value } = req.body;
-        await db.setSetting(key, value);
+        if (!text(key, 100)) return res.status(400).json({ error: 'key obrigatória' });
+        await db.setSetting(text(key, 100), value === null || value === undefined ? null : text(value));
         res.json({ message: 'Configuração salva' });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
@@ -110,8 +126,7 @@ app.get('/api/monthly-totals', async (req, res) => {
         const totals = await db.getMonthlyTotals(parseInt(mes), parseInt(ano));
         res.json(totals);
     } catch (err) {
-        console.error('Erro em monthly-totals:', err);
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
@@ -123,18 +138,18 @@ app.get('/api/physical-cash', async (req, res) => {
         const valor = await db.getPhysicalCash();
         res.json({ valor });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
 app.post('/api/physical-cash', async (req, res) => {
     try {
         const { valor } = req.body;
-        if (valor === undefined) return res.status(400).json({ error: 'Valor é obrigatório' });
-        await db.setPhysicalCash(parseFloat(valor));
+        if (!Number.isFinite(Number(valor)) || Number(valor) < 0) return res.status(400).json({ error: 'Valor inválido' });
+        await db.setPhysicalCash(Number(valor));
         res.json({ message: 'Dinheiro físico atualizado' });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
@@ -145,7 +160,7 @@ app.get('/api/subscriptions', async (req, res) => {
         const subs = await db.getSubscriptions(ativas);
         res.json(subs);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
@@ -156,7 +171,7 @@ app.get('/api/subscriptions/upcoming', async (req, res) => {
         const subs = await db.getSubscriptionsByMonth(parseInt(mes), parseInt(ano));
         res.json(subs);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
@@ -166,15 +181,15 @@ app.get('/api/subscriptions/:id', async (req, res) => {
         if (!sub) return res.status(404).json({ error: 'Subscrição não encontrada' });
         res.json(sub);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
 app.post('/api/subscriptions', async (req, res) => {
     try {
         const { nome, valor, frequencia, dia_pagamento, data_proximo_pagamento, categoria } = req.body;
-        if (!nome || !valor || !frequencia || !data_proximo_pagamento) {
-            return res.status(400).json({ error: 'Campos obrigatórios: nome, valor, frequencia, data_proximo_pagamento' });
+        if (!text(nome) || !isAmount(valor) || !['mensal', 'anual', 'semanal', 'outro'].includes(frequencia) || !isDate(data_proximo_pagamento)) {
+            return res.status(400).json({ error: 'Campos obrigatórios: nome, valor > 0, frequencia, data_proximo_pagamento' });
         }
         const id = await db.addSubscription({ 
             nome, 
@@ -186,13 +201,16 @@ app.post('/api/subscriptions', async (req, res) => {
         });
         res.status(201).json({ id, message: 'Subscrição adicionada' });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
 app.put('/api/subscriptions/:id', async (req, res) => {
     try {
         const { nome, valor, frequencia, dia_pagamento, data_proximo_pagamento, categoria, ativo } = req.body;
+        if (!text(nome) || !isAmount(valor) || !['mensal', 'anual', 'semanal', 'outro'].includes(frequencia) || !isDate(data_proximo_pagamento)) {
+            return res.status(400).json({ error: 'Campos obrigatórios: nome, valor > 0, frequencia, data_proximo_pagamento' });
+        }
         await db.updateSubscription(req.params.id, { 
             nome, 
             valor: parseFloat(valor), 
@@ -200,11 +218,11 @@ app.put('/api/subscriptions/:id', async (req, res) => {
             dia_pagamento: dia_pagamento ? parseInt(dia_pagamento) : null, 
             data_proximo_pagamento, 
             categoria, 
-            ativo 
+            ativo: ativo ? 1 : 0
         });
         res.json({ message: 'Subscrição atualizada' });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
@@ -213,7 +231,7 @@ app.delete('/api/subscriptions/:id', async (req, res) => {
         await db.deleteSubscription(req.params.id);
         res.json({ message: 'Subscrição removida' });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
@@ -222,7 +240,7 @@ app.post('/api/subscriptions/process', async (req, res) => {
         const count = await db.processSubscriptions();
         res.json({ message: `${count} subscrições processadas` });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
@@ -232,7 +250,7 @@ app.get('/api/investments', async (req, res) => {
         const invs = await db.getInvestments();
         res.json(invs);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
@@ -242,15 +260,15 @@ app.get('/api/investments/:id', async (req, res) => {
         if (!inv) return res.status(404).json({ error: 'Investimento não encontrado' });
         res.json(inv);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
 app.post('/api/investments', async (req, res) => {
     try {
         const { nome, tipo, valor, data, frequencia, categoria, observacoes } = req.body;
-        if (!nome || !tipo || !valor || !data) {
-            return res.status(400).json({ error: 'Campos obrigatórios: nome, tipo, valor, data' });
+        if (!text(nome) || !text(tipo) || !isAmount(valor) || !isDate(data)) {
+            return res.status(400).json({ error: 'Campos obrigatórios: nome, tipo, valor > 0, data' });
         }
         const id = await db.addInvestment({ 
             nome, 
@@ -261,21 +279,22 @@ app.post('/api/investments', async (req, res) => {
             categoria, 
             observacoes 
         });
-        // Criar transação de gasto associada
-        await db.addTransaction('gasto', `Investimento: ${nome}`, parseFloat(valor), data, 'Investimento');
         res.status(201).json({ id, message: 'Investimento registado' });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
 app.put('/api/investments/:id', async (req, res) => {
     try {
         const { nome, tipo, valor, data, frequencia, categoria, observacoes } = req.body;
+        if (!text(nome) || !text(tipo) || !isAmount(valor) || !isDate(data)) {
+            return res.status(400).json({ error: 'Campos obrigatórios: nome, tipo, valor > 0, data' });
+        }
         await db.updateInvestment(req.params.id, { nome, tipo, valor: parseFloat(valor), data, frequencia, categoria, observacoes });
         res.json({ message: 'Investimento atualizado' });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
@@ -284,11 +303,13 @@ app.delete('/api/investments/:id', async (req, res) => {
         await db.deleteInvestment(req.params.id);
         res.json({ message: 'Investimento removido' });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        serverError(res, err);
     }
 });
 
 // ========== FRONTEND ==========
+app.use('/api', (req, res) => res.status(404).json({ error: 'Rota não encontrada' }));
+
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
