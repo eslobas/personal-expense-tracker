@@ -104,8 +104,7 @@ async function loadAll() {
 }
 
 async function loadBalance() {
-    const rows = check(await sb.from('transactions').select('tipo, valor'));
-    const balance = rows.reduce((acc, t) => acc + (t.tipo === 'ganho' ? 1 : -1) * Number(t.valor), 0);
+    const balance = Number(check(await sb.rpc('get_balance')));
     $('balance').textContent = money(balance);
     $('balance').closest('.balance-box').classList.toggle('negative', balance < 0);
 }
@@ -123,7 +122,56 @@ async function loadMonth() {
         .order('data', { ascending: false }).order('id', { ascending: false }));
     renderTransactions();
     renderSummary();
-    loadCategories();
+    renderCategoryChart();
+    await Promise.all([loadTrend(), loadCategories()]);
+}
+
+// Ganhos vs gastos dos 6 meses até ao mês selecionado
+async function loadTrend() {
+    const [y, m] = $('month-picker').value.split('-').map(Number);
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(y, m - 1 - i, 1);
+        months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`);
+    }
+    const rows = check(await sb.rpc('monthly_totals', { desde: months[0] }));
+    const byMonth = Object.fromEntries(rows.map(r => [r.mes, r]));
+    const data = months.map(mes => ({
+        mes,
+        ganhos: Number(byMonth[mes]?.ganhos || 0),
+        gastos: Number(byMonth[mes]?.gastos || 0)
+    }));
+    const max = Math.max(1, ...data.flatMap(d => [d.ganhos, d.gastos]));
+    const nomes = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+    $('trend-chart').innerHTML = data.map(d => `
+        <div class="trend-col" title="${nomes[Number(d.mes.slice(5, 7)) - 1]}: +${money(d.ganhos)} € / −${money(d.gastos)} €">
+            <div class="trend-bars">
+                <span class="bar ganho" style="height:${(d.ganhos / max) * 100}%"></span>
+                <span class="bar gasto" style="height:${(d.gastos / max) * 100}%"></span>
+            </div>
+            <small>${nomes[Number(d.mes.slice(5, 7)) - 1]}</small>
+        </div>`).join('');
+}
+
+function renderCategoryChart() {
+    const totals = {};
+    for (const t of transactions) {
+        if (t.tipo !== 'gasto') continue;
+        const c = t.categoria || 'Sem categoria';
+        totals[c] = (totals[c] || 0) + Number(t.valor);
+    }
+    const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    if (!entries.length) {
+        $('cat-chart').innerHTML = '<p class="empty">Sem gastos neste mês.</p>';
+        return;
+    }
+    const total = entries.reduce((a, [, v]) => a + v, 0);
+    $('cat-chart').innerHTML = entries.slice(0, 8).map(([cat, v]) => `
+        <div class="bar-row">
+            <span class="bar-label">${escapeHTML(cat)}</span>
+            <span class="bar-track"><span class="bar-fill" style="width:${(v / entries[0][1]) * 100}%"></span></span>
+            <span class="bar-value">${money(v)} € <small class="muted">${Math.round((v / total) * 100)}%</small></span>
+        </div>`).join('');
 }
 
 async function loadSubscriptions() {
@@ -144,13 +192,14 @@ function renderSummary() {
     const ganhos = transactions.filter(t => t.tipo === 'ganho').reduce((a, t) => a + Number(t.valor), 0);
     const gastos = transactions.filter(t => t.tipo === 'gasto').reduce((a, t) => a + Number(t.valor), 0);
     // subscrições ainda por cobrar neste mês
-    const porVencer = subscriptions
-        .filter(s => s.ativo && s.data_proximo_pagamento >= from && s.data_proximo_pagamento <= to)
+    const porVencer = (tipo) => subscriptions
+        .filter(s => s.ativo && (s.tipo || 'gasto') === tipo && s.data_proximo_pagamento >= from && s.data_proximo_pagamento <= to)
         .reduce((a, s) => a + Number(s.valor), 0);
-    const gastosPrevistos = gastos + porVencer;
-    const livre = ganhos - gastosPrevistos - (savingsGoal || 0);
+    const ganhosPrevistos = ganhos + porVencer('ganho');
+    const gastosPrevistos = gastos + porVencer('gasto');
+    const livre = ganhosPrevistos - gastosPrevistos - (savingsGoal || 0);
 
-    $('m-ganhos').textContent = money(ganhos) + ' €';
+    $('m-ganhos').textContent = money(ganhosPrevistos) + ' €';
     $('m-gastos').textContent = money(gastosPrevistos) + ' €';
     $('m-livre-label').textContent = savingsGoal ? `Pode gastar (meta ${money(savingsGoal)} €)` : 'Disponível';
     $('m-livre').textContent = money(livre) + ' €';
@@ -159,11 +208,16 @@ function renderSummary() {
 
 function renderTransactions() {
     const body = $('tx-body');
-    if (!transactions.length) {
-        body.innerHTML = '<tr><td colspan="5" class="empty">Sem movimentos neste mês.</td></tr>';
+    const q = $('tx-search').value.trim().toLowerCase();
+    const tipo = $('tx-filter').value;
+    const visible = transactions.filter(t =>
+        (!tipo || t.tipo === tipo) &&
+        (!q || t.descricao.toLowerCase().includes(q) || (t.categoria || '').toLowerCase().includes(q)));
+    if (!visible.length) {
+        body.innerHTML = `<tr><td colspan="5" class="empty">${transactions.length ? 'Nada corresponde ao filtro.' : 'Sem movimentos neste mês.'}</td></tr>`;
         return;
     }
-    body.innerHTML = transactions.map(t => `
+    body.innerHTML = visible.map(t => `
         <tr>
             <td>${formatDate(t.data)}</td>
             <td>${escapeHTML(t.descricao)}</td>
@@ -179,13 +233,13 @@ function renderTransactions() {
 function renderSubscriptions() {
     const list = $('subs-list');
     if (!subscriptions.length) {
-        list.innerHTML = '<p class="empty">Nenhuma subscrição.</p>';
+        list.innerHTML = '<p class="empty">Nenhum recorrente. Adicione subscrições, renda ou o salário.</p>';
         return;
     }
     list.innerHTML = subscriptions.map(s => `
         <div class="item ${s.ativo ? '' : 'inactive'}">
             <span>
-                <strong>${escapeHTML(s.nome)}</strong> · ${money(s.valor)} € (${s.frequencia})<br>
+                <strong>${escapeHTML(s.nome)}</strong> · <span class="${s.tipo || 'gasto'}">${s.tipo === 'ganho' ? '+' : '−'}${money(s.valor)} €</span> (${s.frequencia})<br>
                 <small class="muted">${s.ativo ? 'Próximo: ' + formatDate(s.data_proximo_pagamento) : 'Inativa'}</small>
             </span>
             <span>
@@ -242,7 +296,7 @@ document.addEventListener('click', async (e) => {
             const s = subscriptions.find(x => x.id == b.dataset.editSub);
             openSubModal(s);
         } else if (b.dataset.delSub) {
-            if (!confirm('Eliminar esta subscrição? Os gastos já lançados mantêm-se.')) return;
+            if (!confirm('Eliminar este recorrente? Os movimentos já lançados mantêm-se.')) return;
             check(await sb.from('subscriptions').delete().eq('id', b.dataset.delSub));
             await loadSubscriptions();
             renderSummary();
@@ -280,7 +334,7 @@ function openSubModal(sub) {
     form.id.value = '';
     form.data_proximo_pagamento.value = todayStr();
     if (sub) fillForm(form, sub);
-    $('sub-title').textContent = sub ? 'Editar subscrição' : 'Nova subscrição';
+    $('sub-title').textContent = sub ? 'Editar recorrente' : 'Novo recorrente';
     $('sub-modal').showModal();
 }
 
@@ -315,3 +369,48 @@ $('month-picker').addEventListener('change', () => shiftMonth(0));
 
 $('month-picker').value = todayStr().slice(0, 7);
 $('tx-form').data.value = todayStr();
+
+$('tx-search').addEventListener('input', renderTransactions);
+$('tx-filter').addEventListener('change', renderTransactions);
+
+// ========== EXPORTAR / CONTA ==========
+
+$('export-csv').addEventListener('click', async () => {
+    try {
+        // a API devolve no máximo 1000 linhas por pedido: paginar
+        const all = [];
+        for (let from = 0; ; from += 1000) {
+            const page = check(await sb.from('transactions')
+                .select('data, tipo, descricao, categoria, valor')
+                .order('data').order('id').range(from, from + 999));
+            all.push(...page);
+            if (page.length < 1000) break;
+        }
+        const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const csv = ['Data;Tipo;Descrição;Categoria;Valor']
+            .concat(all.map(t => [t.data, t.tipo, t.descricao, t.categoria, String(t.valor).replace('.', ',')].map(cell).join(';')))
+            .join('\r\n');
+        // BOM para o Excel abrir os acentos corretamente
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `despesas-${todayStr()}.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    } catch (err) {
+        toast('Erro ao exportar: ' + err.message, true);
+    }
+});
+
+$('delete-account').addEventListener('click', async () => {
+    const typed = prompt(`Isto apaga a conta e TODOS os dados, sem volta.\nPara confirmar, escreva o seu email (${user.email}):`);
+    if (typed === null) return;
+    if (typed.trim().toLowerCase() !== user.email.toLowerCase()) return toast('Email não corresponde. Nada foi apagado.', true);
+    try {
+        check(await sb.rpc('delete_account'));
+        await sb.auth.signOut();
+        toast('Conta apagada.');
+    } catch (err) {
+        toast('Erro: ' + err.message, true);
+    }
+});

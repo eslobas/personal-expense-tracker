@@ -92,7 +92,7 @@ button.icon:hover { background: var(--soft); }
 .savings-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .savings-row input { width: 120px; }
 
-.tx-form { display: grid; grid-template-columns: 120px 2fr 1fr 150px 1.3fr auto; gap: 8px; }
+.tx-form { display: grid; grid-template-columns: 110px minmax(0,2fr) minmax(0,1fr) 150px minmax(0,1.3fr) auto; gap: 8px; }
 
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
@@ -137,7 +137,43 @@ dialog label.check { flex-direction: row; align-items: center; color: var(--text
 
 @media (max-width: 720px) {
     .stats { grid-template-columns: 1fr; }
-    .tx-form { grid-template-columns: 1fr 1fr; }
+    .tx-form { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+    .tx-form > * { width: 100%; min-width: 0; }
+    .savings-row input { flex: 1; }
     .tx-form input[name="descricao"], .tx-form button { grid-column: 1 / -1; }
     th:nth-child(3), td:nth-child(3) { display: none; }
 }
+
+/* ---------- Gráficos ---------- */
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.bars { display: flex; flex-direction: column; gap: 8px; }
+.bar-row { display: grid; grid-template-columns: 110px 1fr 120px; gap: 10px; align-items: center; font-size: .9rem; }
+.bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-track { background: var(--soft); border-radius: 4px; height: 10px; overflow: hidden; }
+.bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.bar-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.trend { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; height: 150px; }
+.trend-col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.trend-bars { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 3px; }
+.trend-bars .bar { width: 40%; max-width: 18px; min-height: 2px; border-radius: 3px 3px 0 0; }
+.bar.ganho, .dot.ganho { background: var(--good); }
+.bar.gasto, .dot.gasto { background: var(--bad); }
+.trend-col small { color: var(--muted); font-size: .8rem; }
+.legend { display: flex; gap: 6px; align-items: center; font-size: .85rem; color: var(--muted); margin-top: 8px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-left: 8px; }
+.dot:first-child { margin-left: 0; }
+span.ganho { color: var(--good); }
+
+/* ---------- Filtros / rodapé ---------- */
+.filters { display: flex; gap: 8px; margin-bottom: 8px; }
+.filters input { flex: 1; min-width: 0; }
+.app-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+button.link-danger { background: none; color: var(--bad); padding: 6px 0; font-size: .9rem; }
+button.link-danger:hover { background: none; text-decoration: underline; }
+
+@media (max-width: 720px) {
+    .charts { grid-template-columns: 1fr; }
+    .bar-row { grid-template-columns: 90px 1fr 110px; }
+}
+.bar-value { text-align: right; }
