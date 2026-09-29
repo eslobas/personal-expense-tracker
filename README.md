@@ -11,6 +11,8 @@ eye on a monthly savings goal — all from a clean single-page web interface.
 
 > Interface language is **Portuguese**; code, API and docs are in English.
 
+> 🌐 **Versão online multi-utilizador:** ver [`web/`](web/README.md) — login por email, grátis (Supabase + Netlify/Vercel).
+
 ---
 
 ## ✨ Features
