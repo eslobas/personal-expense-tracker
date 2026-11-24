@@ -2,11 +2,13 @@
 
 A full-stack personal finance manager built with **Node.js, Express and MySQL**.
 Track income and expenses, manage recurring subscriptions, log investments and keep an
-eye on a monthly savings goal — all from a clean single-page web interface.
+eye on a monthly savings goal — from a clean single-page web interface or the
+**React Native mobile app** in [`mobile/`](mobile/README.md).
 
 ![Node](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)
 ![MySQL](https://img.shields.io/badge/MySQL-8-4479A1?logo=mysql&logoColor=white)
+![React Native](https://img.shields.io/badge/React%20Native-Expo-61DAFB?logo=react&logoColor=black)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 > Interface language is **Portuguese**; code, API and docs are in English.
@@ -22,19 +24,25 @@ eye on a monthly savings goal — all from a clean single-page web interface.
 - **Investments** — logged and automatically mirrored as an expense transaction.
 - **Physical cash** — track wallet cash separately from the bank balance.
 - **Settings** — key/value store for things like the monthly salary check and savings goal.
+- **Mobile app** — React Native + Expo client (TypeScript, Expo Router) with a dashboard,
+  month-filtered transactions, add/edit form and subscriptions. Accessible and tested with
+  Jest + React Native Testing Library. See [`mobile/README.md`](mobile/README.md).
 
 ## 🧱 Architecture
 
 ```
-Browser (SPA)  ──fetch──▶  Express REST API  ──mysql2/promise──▶  MySQL
-public/*                   server.js                              despesas DB
-                           db.js (data-access layer)
+Browser (SPA)  ──fetch──┐
+public/*                │
+                        ├──▶  Express REST API  ──mysql2/promise──▶  MySQL
+Mobile app     ──fetch──┘     server.js                              despesas DB
+mobile/ (Expo)                db.js (data-access layer)
 ```
 
 - `server.js` — Express app + REST routes (thin controllers).
 - `db.js` — data-access layer; parameterised queries via a connection pool (`mysql2/promise`).
 - `public/` — vanilla HTML/CSS/JS single-page front end.
 - `schema.sql` — database schema (tables, indexes, seed row).
+- `mobile/` — React Native (Expo) client consuming the same REST API.
 
 ## 🔌 API reference
 
@@ -70,6 +78,19 @@ cp .env.example .env        # then edit DB_USER / DB_PASSWORD
 npm run dev                 # http://localhost:3002
 ```
 
+### 📱 Mobile app
+
+With the API running:
+
+```bash
+cd mobile
+npm install
+cp .env.example .env        # EXPO_PUBLIC_API_URL=http://<your-LAN-IP>:3002 on a real phone
+npx expo start
+```
+
+Full details (emulators, physical devices, tests) in [`mobile/README.md`](mobile/README.md).
+
 ## ⚙️ Configuration
 
 | Variable | Default | Description |
@@ -83,7 +104,8 @@ npm run dev                 # http://localhost:3002
 ## 🛠️ Tech stack
 
 **Backend** · Node.js · Express · mysql2 (connection pool, parameterised queries) ·
-**Database** · MySQL · **Frontend** · HTML · CSS · vanilla JavaScript
+**Database** · MySQL · **Frontend** · HTML · CSS · vanilla JavaScript ·
+**Mobile** · React Native · Expo · Expo Router · TypeScript · Jest · React Native Testing Library
 
 ## 🗺️ Roadmap
 
