@@ -13,6 +13,18 @@ eye on a monthly savings goal — from a clean single-page web interface or the
 
 > Interface language is **Portuguese**; code, API and docs are in English.
 
+## 📦 What's in this repo
+
+The project has three clients. Each one lives in its own folder and can run on its own.
+
+| Folder | What it is | Stack | Data |
+|---|---|---|---|
+| [`web/`](web/README.md) | **Online multi-user PWA** (the version deployed on Netlify): magic-link login, per-user data isolation with Row-Level Security, charts, recurring entries, search, CSV export, account deletion, installable | JavaScript · Supabase (Auth, PostgreSQL, RLS) · PWA | Supabase |
+| [`mobile/`](mobile/README.md) | **React Native app**: dashboard, month-filtered transactions, add/edit form, subscriptions; accessible and tested | React Native · Expo Router · TypeScript · Jest + RNTL | Express API below |
+| `server.js` · `db.js` · `public/` | **Original self-hosted version**: REST API and single-page web UI | Node.js · Express · MySQL | MySQL |
+
+The web PWA is the newest and most complete version. The mobile app talks to the Express API, so run the server first (see *Getting started*).
+
 ---
 
 ## ✨ Features

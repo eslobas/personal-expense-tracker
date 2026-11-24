@@ -19,7 +19,8 @@
         <!-- Aviso de novo mês -->
         <div id="month-check-section" class="section hidden">
             <h2>📆 Novo Mês</h2>
-            <p>Já recebeu o salário de <strong>400 €</strong> este mês?</p>
+            <p>Já recebeu o salário este mês?</p>
+            <input type="number" id="salary-amount" step="0.01" min="0" placeholder="Valor do salário (€)">
             <button id="salary-yes">Sim, registar</button>
             <button id="salary-no">Ainda não</button>
         </div>
@@ -150,7 +151,7 @@
                     <option value="mensal">Mensal</option>
                     <option value="anual">Anual</option>
                     <option value="semanal">Semanal</option>
-                    <option value="outro">Outro</option>
+                    <option value="outro">Outro (manual)</option>
                 </select>
                 <input type="number" id="sub-dia" placeholder="Dia do mês (1-31) [se mensal]" min="1" max="31">
                 <label>Próximo pagamento:</label>

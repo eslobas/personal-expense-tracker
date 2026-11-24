@@ -13,10 +13,10 @@ const savingsGoalInput = document.getElementById('savings-goal');
 const setSavingsBtn = document.getElementById('set-savings');
 const savingsInfo = document.getElementById('savings-info');
 const budgetInfo = document.getElementById('budget-info');
+const salaryInput = document.getElementById('salary-amount');
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('A iniciar aplicação...');
     init();
 });
 
@@ -40,7 +40,7 @@ async function init() {
         
     } catch (error) {
         console.error('Erro na inicialização:', error);
-        alert('Erro ao carregar a aplicação. Verifique o console (F12).');
+        alert('Erro ao carregar a aplicação: ' + error.message);
     }
 }
 
@@ -82,7 +82,6 @@ function setupEventListeners() {
 // ========== FUNÇÕES PRINCIPAIS ==========
 
 async function loadAllData() {
-    console.log('A carregar todos os dados...');
     try {
         // Processar subscrições primeiro
         await processSubscriptions();
@@ -97,7 +96,6 @@ async function loadAllData() {
             loadMonthData()
         ]);
         
-        console.log('Todos os dados carregados com sucesso!');
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
     }
@@ -106,35 +104,19 @@ async function loadAllData() {
 // ========== API CALLS ==========
 
 async function fetchAPI(url, options = {}) {
-    console.log(`🌐 Fetching ${url}...`, options);
-    try {
-        const res = await fetch(url, options);
-        console.log(`📥 Resposta de ${url}: status ${res.status}`);
-        
-        const text = await res.text();
-        console.log(`📄 Texto resposta:`, text.substring(0, 200)); // primeiros 200 caracteres
-        
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status}: ${text}`);
-        }
-        
-        try {
-            return JSON.parse(text);
-        } catch (e) {
-            console.error('❌ Resposta não é JSON válido:', text);
-            throw new Error('Resposta do servidor não é JSON válido');
-        }
-    } catch (error) {
-        console.error(`❌ Erro em fetchAPI para ${url}:`, error);
-        throw error;
-    }
+    const res = await fetch(url, options);
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+    return data;
 }
+
 // ========== SALDO ==========
 
 async function updateBalance() {
     try {
         const data = await fetchAPI('/api/balance');
-        balanceSpan.textContent = data.balance.toFixed(2).replace('.', ',');
+        balanceSpan.textContent = money(data.balance);
+        balanceSpan.closest('.balance-box').classList.toggle('negative', data.balance < 0);
     } catch (error) {
         console.error('Erro ao atualizar saldo:', error);
         balanceSpan.textContent = '0,00';
@@ -146,12 +128,11 @@ async function updateBalance() {
 async function loadSettings() {
     try {
         const data = await fetchAPI('/api/settings/meta_poupanca');
-        console.log('Meta carregada:', data);
         
         if (data.value) {
             savingsGoal = parseFloat(data.value);
             savingsGoalInput.value = savingsGoal;
-            savingsInfo.textContent = `Meta definida: ${savingsGoal.toFixed(2).replace('.', ',')} €`;
+            savingsInfo.textContent = `Meta definida: ${money(savingsGoal)} €`;
         } else {
             savingsGoal = null;
             savingsGoalInput.value = '';
@@ -165,7 +146,6 @@ async function loadSettings() {
 
 async function setSavingsGoal() {
     const value = savingsGoalInput.value;
-    console.log('A definir meta:', value);
     
     try {
         if (value === '') {
@@ -177,7 +157,7 @@ async function setSavingsGoal() {
             savingsGoal = null;
             savingsInfo.textContent = 'Nenhuma meta definida.';
         } else {
-            const num = parseFloat(value.replace(',', '.'));
+            const num = parseAmount(value);
             if (num < 0) return alert('Valor inválido');
             
             await fetchAPI('/api/settings', {
@@ -186,7 +166,7 @@ async function setSavingsGoal() {
                 body: JSON.stringify({ key: 'meta_poupanca', value: num })
             });
             savingsGoal = num;
-            savingsInfo.textContent = `Meta definida: ${num.toFixed(2).replace('.', ',')} €`;
+            savingsInfo.textContent = `Meta definida: ${money(num)} €`;
         }
         await calculateBudget();
     } catch (error) {
@@ -196,39 +176,29 @@ async function setSavingsGoal() {
 }
 
 async function calculateBudget() {
-    console.log('A calcular orçamento...');
-    console.log('Mês atual:', currentMonth, 'Ano:', currentYear);
-    console.log('Meta de poupança:', savingsGoal);
     
     try {
         // Buscar totais do mês
         const url = `/api/monthly-totals?mes=${currentMonth}&ano=${currentYear}`;
-        console.log('A buscar totais em:', url);
         
         const totals = await fetchAPI(url);
-        console.log('Totais recebidos:', totals);
         
         // Garantir que são números
         const ganhos = parseFloat(totals.ganhos) || 0;
         const gastos = parseFloat(totals.gastos) || 0;
-        console.log('Ganhos (convertido):', ganhos, 'Gastos (convertido):', gastos);
         
         // Buscar subscrições futuras
         const upcomingUrl = `/api/subscriptions/upcoming?mes=${currentMonth}&ano=${currentYear}`;
-        console.log('A buscar subscrições futuras em:', upcomingUrl);
         
         const upcomingSubs = await fetchAPI(upcomingUrl);
-        console.log('Subscrições futuras:', upcomingSubs);
         
         // Garantir que upcomingSubs é um array
         const subsArray = Array.isArray(upcomingSubs) ? upcomingSubs : [];
         const totalSubsFuturas = subsArray.reduce((acc, s) => {
             return acc + (parseFloat(s.valor) || 0);
         }, 0);
-        console.log('Total subscrições futuras:', totalSubsFuturas);
         
         const gastosPrevistos = gastos + totalSubsFuturas;
-        console.log('Gastos previstos (reais + futuros):', gastosPrevistos);
         
         // Verificar se ganhos é um número válido antes de usar toFixed
         if (isNaN(ganhos)) {
@@ -239,30 +209,28 @@ async function calculateBudget() {
         // Mostrar resultado
         if (!savingsGoal) {
             const disponivel = ganhos - gastosPrevistos;
-            console.log('Sem meta - disponível:', disponivel);
             
             budgetInfo.innerHTML = `💰 <strong>Resumo do mês:</strong><br>
-                Ganhos: ${ganhos.toFixed(2).replace('.', ',')} €<br>
-                Gastos (reais + subscrições futuras): ${gastosPrevistos.toFixed(2).replace('.', ',')} €<br>
-                <strong>Saldo disponível: ${disponivel.toFixed(2).replace('.', ',')} €</strong>`;
+                Ganhos: ${money(ganhos)} €<br>
+                Gastos (reais + subscrições futuras): ${money(gastosPrevistos)} €<br>
+                <strong>Saldo disponível: ${money(disponivel)} €</strong>`;
         } else {
             const disponivel = ganhos - gastosPrevistos - savingsGoal;
-            console.log('Com meta - disponível:', disponivel);
             
-            budgetInfo.innerHTML = `🎯 <strong>Com meta de poupança de ${savingsGoal.toFixed(2).replace('.', ',')} €:</strong><br>
-                Ganhos: ${ganhos.toFixed(2).replace('.', ',')} €<br>
-                Gastos (reais + subscrições futuras): ${gastosPrevistos.toFixed(2).replace('.', ',')} €<br>
-                <strong>Pode gastar mais: ${disponivel.toFixed(2).replace('.', ',')} €</strong>`;
+            budgetInfo.innerHTML = `🎯 <strong>Com meta de poupança de ${money(savingsGoal)} €:</strong><br>
+                Ganhos: ${money(ganhos)} €<br>
+                Gastos (reais + subscrições futuras): ${money(gastosPrevistos)} €<br>
+                <strong>Pode gastar mais: ${money(disponivel)} €</strong>`;
             
             if (disponivel < 0) {
                 budgetInfo.innerHTML += '<br><span style="color:red">⚠️ Já ultrapassou o limite em ' + 
-                    Math.abs(disponivel).toFixed(2).replace('.', ',') + ' €!</span>';
+                    money(Math.abs(disponivel)) + ' €!</span>';
             }
         }
     } catch (error) {
         console.error('ERRO DETALHADO no calculateBudget:', error);
         console.error('Stack trace:', error.stack);
-        budgetInfo.innerHTML = 'Erro ao calcular orçamento: ' + error.message;
+        budgetInfo.textContent = 'Erro ao calcular orçamento: ' + error.message;
     }
 }
 
@@ -276,6 +244,8 @@ async function checkMonthChange() {
         const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
         
         if (lastChecked !== currentMonthStr) {
+            const salario = await fetchAPI('/api/settings/salario');
+            salaryInput.value = salario.value || '';
             monthCheckSection.classList.remove('hidden');
         } else {
             monthCheckSection.classList.add('hidden');
@@ -288,14 +258,21 @@ async function checkMonthChange() {
 async function recordSalary(received) {
     try {
         if (received) {
+            const salario = parseAmount(salaryInput.value);
+            if (!(salario > 0)) return alert('Indique o valor do salário');
+            await fetchAPI('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: 'salario', value: salario })
+            });
             await fetchAPI('/api/transactions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     tipo: 'ganho',
                     descricao: 'Salário',
-                    valor: 400,
-                    data: new Date().toISOString().split('T')[0],
+                    valor: salario,
+                    data: todayStr(),
                     categoria: 'Salário'
                 })
             });
@@ -351,9 +328,9 @@ async function loadTransactions(tipo) {
             const row = tableBody.insertRow();
             row.innerHTML = `
                 <td>${formatDate(t.data)}</td>
-                <td>${t.descricao}</td>
-                <td>${t.categoria || '-'}</td>
-                <td>${parseFloat(t.valor).toFixed(2).replace('.', ',')} €</td>
+                <td>${escapeHTML(t.descricao)}</td>
+                <td>${escapeHTML(t.categoria || '-')}</td>
+                <td>${money(t.valor)} €</td>
                 <td class="actions">
                     <button onclick="editTransaction(${t.id})">✏️</button>
                     <button class="danger" onclick="deleteTransaction(${t.id})">🗑️</button>
@@ -367,7 +344,6 @@ async function loadTransactions(tipo) {
 
 async function addTransaction(event, tipo) {
     event.preventDefault();
-    console.log('A adicionar transação do tipo:', tipo);
     
     const form = event.target;
     const formData = new FormData(form);
@@ -382,7 +358,7 @@ async function addTransaction(event, tipo) {
         return;
     }
     
-    const valorNumerico = parseFloat(valorRaw.replace(',', '.'));
+    const valorNumerico = parseAmount(valorRaw);
     
     if (isNaN(valorNumerico) || valorNumerico <= 0) {
         alert('Valor inválido');
@@ -418,7 +394,7 @@ window.editTransaction = async (id) => {
         document.getElementById('edit-tipo').value = t.tipo;
         document.getElementById('edit-descricao').value = t.descricao;
         document.getElementById('edit-valor').value = t.valor;
-        document.getElementById('edit-data').value = t.data.split('T')[0];
+        document.getElementById('edit-data').value = t.data;
         document.getElementById('edit-categoria').value = t.categoria || '';
         document.getElementById('modal-title').textContent = `Editar ${t.tipo === 'ganho' ? 'Ganho' : 'Gasto'}`;
         document.getElementById('edit-modal').classList.remove('hidden');
@@ -470,8 +446,8 @@ window.deleteTransaction = async (id) => {
 async function loadPhysicalCash() {
     try {
         const data = await fetchAPI('/api/physical-cash');
-        document.getElementById('physical-cash').value = data.valor.toFixed(2).replace('.', ',');
-        document.getElementById('physical-cash-display').textContent = `💰 Dinheiro físico: ${data.valor.toFixed(2).replace('.', ',')} €`;
+        document.getElementById('physical-cash').value = data.valor.toFixed(2);
+        document.getElementById('physical-cash-display').textContent = `💰 Dinheiro físico: ${money(data.valor)} €`;
     } catch (error) {
         console.error('Erro ao carregar dinheiro físico:', error);
     }
@@ -503,7 +479,7 @@ function showAddSubscription() {
     document.getElementById('sub-ativo').checked = true;
     
     // Sugerir data padrão (hoje)
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayStr();
     document.getElementById('sub-proxima-data').value = today;
     
     document.getElementById('subscription-modal').classList.remove('hidden');
@@ -525,8 +501,8 @@ async function loadSubscriptions() {
             div.className = 'subscription-item';
             div.innerHTML = `
                 <span>
-                    <strong>${sub.nome}</strong> - ${parseFloat(sub.valor).toFixed(2).replace('.', ',')} € (${sub.frequencia})<br>
-                    Próximo: ${new Date(sub.data_proximo_pagamento).toLocaleDateString('pt-PT')}
+                    <strong>${escapeHTML(sub.nome)}</strong> - ${money(sub.valor)} € (${sub.frequencia})<br>
+                    Próximo: ${formatDate(sub.data_proximo_pagamento)}
                     ${!sub.ativo ? ' (inativa)' : ''}
                 </span>
                 <span>
@@ -587,9 +563,9 @@ window.editSubscription = async (id) => {
         document.getElementById('sub-valor').value = sub.valor;
         document.getElementById('sub-frequencia').value = sub.frequencia;
         document.getElementById('sub-dia').value = sub.dia_pagamento || '';
-        document.getElementById('sub-proxima-data').value = sub.data_proximo_pagamento.split('T')[0];
+        document.getElementById('sub-proxima-data').value = sub.data_proximo_pagamento;
         document.getElementById('sub-categoria').value = sub.categoria || '';
-        document.getElementById('sub-ativo').checked = sub.ativo === 1;
+        document.getElementById('sub-ativo').checked = !!sub.ativo;
         document.getElementById('subscription-modal-title').textContent = 'Editar Subscrição';
         document.getElementById('subscription-modal').classList.remove('hidden');
     } catch (error) {
@@ -627,7 +603,7 @@ function showAddInvestment() {
     document.getElementById('inv-freq-container').style.display = 'none';
     
     // Sugerir data padrão (hoje)
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayStr();
     document.getElementById('inv-data').value = today;
     
     document.getElementById('investment-modal').classList.remove('hidden');
@@ -655,8 +631,8 @@ async function loadInvestments() {
             div.className = 'investment-item';
             div.innerHTML = `
                 <span>
-                    <strong>${inv.nome}</strong> - ${parseFloat(inv.valor).toFixed(2).replace('.', ',')} € (${inv.tipo})<br>
-                    Data: ${new Date(inv.data).toLocaleDateString('pt-PT')}
+                    <strong>${escapeHTML(inv.nome)}</strong> - ${money(inv.valor)} € (${inv.tipo})<br>
+                    Data: ${formatDate(inv.data)}
                     ${inv.frequencia ? ` (${inv.frequencia})` : ''}
                 </span>
                 <span>
@@ -716,7 +692,7 @@ window.editInvestment = async (id) => {
         document.getElementById('inv-nome').value = inv.nome;
         document.getElementById('inv-tipo').value = inv.tipo;
         document.getElementById('inv-valor').value = inv.valor;
-        document.getElementById('inv-data').value = inv.data.split('T')[0];
+        document.getElementById('inv-data').value = inv.data;
         
         if (inv.tipo === 'regular') {
             document.getElementById('inv-frequencia').value = inv.frequencia || 'mensal';
@@ -750,12 +726,26 @@ window.deleteInvestment = async (id) => {
 // ========== UTILITÁRIOS ==========
 
 function formatDate(dateStr) {
-    try {
-        const d = new Date(dateStr + 'T12:00:00');
-        return d.toLocaleDateString('pt-PT');
-    } catch (error) {
-        return dateStr;
-    }
+    if (!dateStr) return '-';
+    const [y, m, d] = String(dateStr).slice(0, 10).split('-');
+    return `${d}/${m}/${y}`;
+}
+
+function todayStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function money(n) {
+    return (Number(n) || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function parseAmount(v) {
+    return parseFloat(String(v).replace(',', '.'));
+}
+
+function escapeHTML(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 function switchTab(e) {
